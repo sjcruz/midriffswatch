@@ -16,61 +16,54 @@
 #' @return dataframe with biomass, catch, and profits made across all patches 
 
 
-MPA.Model <- function(r, K, Fishing, B, years, MPA.mat, mrate, MSY, bmsy, fmsy, p, c, profit.msy, start.year){
+MPA.Model <- function(Name, Adjusted, r, K, Fishing, B, years, MPA.mat, mrate, MSY, bmsy, fmsy, p, c, profit.msy, start.year){
   source(here::here("R", "fishing_effort.R"))
-  
+ 
   patches <- 106 #matrix is 106 by 106 patches for a total of 11236 patches 
   F.mat <- matrix(ncol=patches, nrow=patches, Fishing) 
   K.mat <- matrix(ncol=patches, nrow=patches, K/11236)  
   B.mat <- matrix(ncol=patches, nrow=patches, B/11236)  
-  arriving <- matrix(nrow=nrow(MPA.mat), ncol= ncol(MPA.mat), 0) 
-  Years<- as.vector(2015:(2015+ years))
+  arriving <- matrix(nrow=patches, ncol=patches, 0) 
+  procrastination <- max(start.year-2015, 0)
+  Years<- as.numeric(2015:(2015+ years + procrastination))
   
-  l.patch <- c(patches, 1: (patches-1))
-  left.patch<-as.matrix(do.call(rbind, replicate(patches, l.patch, simplify=FALSE)))
-  r.patch <- c(2: patches, 1)
-  right.patch<-as.matrix(do.call(rbind, replicate(patches, l.patch, simplify=FALSE)))
-  u.patch <- c(patches, 1: (patches-1))
-  up.patch<-as.matrix(do.call(cbind, replicate(patches, u.patch, simplify=FALSE)))
-  d.patch <- c(2: patches, 1)
-  down.patch<-as.matrix(do.call(cbind, replicate(patches, d.patch, simplify=FALSE)))
+  l.patch <- as.numeric(c(patches, 1: (patches-1)))
+  r.patch <- as.numeric(c(2: patches, 1))
+  u.patch <- as.numeric(c(patches, 1: (patches-1)))
+  d.patch <- as.numeric(c(2: patches, 1))
   
-  summary<- data.frame(Year=NA,
-                       Leave=NA, 
-                       Arrive=NA,
-                       Surplus=NA,
+  summary<- data.frame(Name=NA, 
+                       Adjusted=NA, 
+                       Year=NA,
                        Catch=NA,
-                       Biomass=NA, 
-                       Profit=NA,
+                       Biomass=NA,
+                       Biomass_MPA=NA,
                        Fishing=NA,
                        PV=NA, 
-                       Revenue=NA,
-                       bbmsy=NA,
-                       ffmsy=NA)
+                       Implementation_year=NA)
   
   for (i in Years){
     
-    if(i == start.year){F.mat <- F.mat*MPA.mat} else {F.mat <- F.mat}
+    if(i == start.year){F.mat = F.mat*MPA.mat} else {F.mat = F.mat}
     
     t <- i - 2015
     
     F.out <- fishing_effort (t=t, p=p, MSY=MSY, r=r, bmsy=bmsy, fmsy=fmsy, 
-                                F.mat=F.mat, B.mat=B.mat, c=c, profit.msy = profit.msy)
-    F.mat <- (F.out[[1]])
-    profit <- (F.out[[2]])
-    PV <- (F.out[[3]])
-    revenue <- F.out[[4]]
+                             F.mat=F.mat, B.mat=B.mat, c=c, profit.msy = profit.msy)
+    
+    F.mat <- as.matrix(F.out[[1]])
+    PV <-  as.matrix(F.out[[3]])
     
     leaving <- mrate*B.mat 
     leaving[leaving < 0] <- 0
     
     for(row in 1:nrow(arriving)) {
       for(col in 1:ncol(arriving)) {
-        arriving [row, col] <- 0.25*leaving[left.patch[row, col]]+ 
-          0.25*leaving[right.patch[row, col]] + 
-          0.25*leaving[up.patch[row, col]] + 
-          0.25*leaving[down.patch[row, col]]
         
+        arriving [row, col] <-  0.25*leaving[row, l.patch[col]]+ 
+                                0.25*leaving[row, r.patch[col]] + 
+                                0.25*leaving[u.patch[row], col] + 
+                                0.25*leaving[d.patch[row], col]
       }
     } #close nested forloop for calculating arriving
     
@@ -82,18 +75,18 @@ MPA.Model <- function(r, K, Fishing, B, years, MPA.mat, mrate, MSY, bmsy, fmsy, 
     B.mat <- B.mat + surplus - catches - leaving + arriving
     B.mat[B.mat < 0] <- 0
     
-    output<- data.frame (Year= i, 
-                         Leave = sum(leaving) , 
-                         Arrive = sum(arriving) , 
-                         Surplus = sum(surplus),
+    outside <- B.mat*MPA.mat
+   
+    output<- data.frame (Name = Name,
+                         Adjusted = Adjusted,
+                         Year= i,
                          Catch = sum(catches),
                          Biomass = sum(B.mat),
-                         Profit = sum (profit),
-                         Fishing = mean (F.mat), 
+                         Biomass_MPA = sum(B.mat) - sum(outside),
+                         Fishing = mean(F.mat), 
                          PV = sum(PV), 
-                         Revenue= sum(revenue),
-                         bbmsy = sum(B.mat)/bmsy,
-                         ffmsy = mean (F.mat)/fmsy)
+                         Implementation_year=start.year)
+    
     summary <- rbind (summary, output)
   }
   return(summary[-1,])

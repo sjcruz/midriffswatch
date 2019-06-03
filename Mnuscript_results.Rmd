@@ -1,0 +1,149 @@
+---
+title: "Paper narrative"
+author: "Seleni Cruz"
+date: "6/2/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+```
+
+1. COBI's 5%: aggregate and species: no need for sensitivity- there is enough evidence in literature to suggest that 5% is not enough 
+
+```{r echo=FALSE}
+BAU <- read.csv(here::here("inputs", "BAU.csv"))%>%
+  plyr::rename(c("Catch"="BAU_C", "Biomass"="BAU_B","Biomass_MPA"="BAU_B_MPA", "PV"="BAU_PV"))%>%
+  select(Name, Adjusted, Year, BAU_C, BAU_B, BAU_B_MPA, BAU_PV)
+scenarios <- read.csv(here::here("inputs", "Scenarios.csv"))
+
+All <- inner_join(scenarios, BAU, by=c("Name", "Adjusted", "Year"))%>%data.frame()
+
+plot1 <- All %>% filter(Year<=2065)%>% group_by(Adjusted, Implementation_year, Reserve_size, Year)%>%
+    summarise_at(.vars= vars(Catch, Biomass, Biomass_MPA, PV, BAU_C, BAU_B, BAU_B_MPA, BAU_PV), .funs =  sum)%>%
+  filter(Reserve_size==0.05, Adjusted=="IUU")%>%
+  ungroup()
+
+COBI<-ggplot(plot1, aes(x=Year, y=Catch))+
+  geom_line(size=1.1, linetype="solid", color="#6F939B")+
+  geom_line(aes(x=Year, y=BAU_C), color="#7D5C39", linetype="dashed",size=1.1)+
+  scale_color_manual(" ",values= c("#7D5C39", "#6F939B"), labels=c("Business as usual", "Reserve size 5%"))+
+  scale_linetype_manual(" ", values=c("dashed", "solid"), labels=c("Business as usual", "Reserve size 5%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(expand = c(0, 0))+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  #theme(text=element_text(family="Calibri Light"))+
+  theme(legend.justification=c(1,1), legend.position=c(1,1),
+        axis.ticks = element_blank(), 
+        legend.box.background = element_rect(colour = "transparent"))
+COBI+facet_wrap(~Implementation_year)
+
+```
+
+
+```{r echo=FALSE}
+payoff_analysis <- read.csv(here::here("inputs", "payoff_all.csv"))%>%
+   filter(Reserve_size=="0.05",  Adjusted=="IUU")%>%
+  select(Implementation_year, C_per, B_per, PV_per, Transition_period, Payoff_period)
+
+names(payoff_analysis)<- c("Implementation year", "Catch (%)", "Biomass (%)", "PV (%)", "Transition period", "Payoff period")
+
+knitr::kable(payoff_analysis, caption="Table 1: COBI design results: catch, biomass and PV in percent relative to BAU, transition and payoff period in years from implementation year",digits = c(0, 2, 2, 2, 0,0))
+
+```
+
+Winners and loosers?
+```{r echo=FALSE}
+five <- All %>% filter(Adjusted=="IUU", Implementation_year==2015, Reserve_size==0.05)
+
+fish<-ggplot(five, aes(x=Year, y=Catch, group = Name))+
+  geom_line(size=1.1, linetype="solid", color="#6F939B")+
+  geom_line(aes(x=Year, y=BAU_C), color="#7D5C39", linetype="dashed",size=1.1)+
+  scale_color_manual(" ",values= c("#7D5C39", "#6F939B"), labels=c("Business as usual", "Reserve size 5%"))+
+  scale_linetype_manual(" ", values=c("dashed", "solid"), labels=c("Business as usual", "Reserve size 5%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(limits = c(2016,2065),
+                     breaks=c(2016, 2040, 2064),
+                     labels = c("2015","2040", "2065"), expand = c(0, 0))+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  #theme(text=element_text(family="Calibri Light"))+
+  theme(legend.justification=c(1,1), legend.position=c(1,1),
+        axis.ticks = element_blank(), 
+        legend.box.background = element_rect(colour = "transparent"))
+fish+facet_wrap(~Name, scales="free")
+
+```
+
+```{r echo=FALSE}
+payoff_analysis <- read.csv(here::here("inputs", "payoff_fishery.csv"))%>%
+   filter(Reserve_size=="0.05",  Adjusted=="IUU", Implementation_year==2015)%>%
+  select(Name, C_per, B_per, PV_per, Transition_period, Payoff_period)
+
+names(payoff_analysis)<- c("Fishery", "Catch (%)", "Biomass (%)", "PV (%)", "Transition period", "Payoff period")
+
+knitr::kable(payoff_analysis, caption="Table 2: COBI design results: catch, biomass and PV in percent relative to BAU, transition and payoff period in years from implementation year", digits = c(0, 2, 2, 2, 0,0))
+
+
+```
+
+
+2. Payoff and reserve size 
+```{r echo=FALSE}
+payoff_analysis <- read.csv(here::here("inputs", "payoff_all.csv"))%>% filter(Adjusted=="IUU")
+payoff_analysis$Implementation_year <- as.factor(payoff_analysis$Implementation_year)
+
+ggplot(payoff_analysis, aes(x=Reserve_size, y=Payoff_period, group=Implementation_year, color=Implementation_year))+
+  geom_point(size=2)+
+  geom_line()+
+  labs(title = "Reserve size and payoff period", x= "Reserve size (%)", y= "Payoff period (years)")+
+  facet_wrap(~Adjusted, scales="free")+
+  theme_classic()
+
+ggplot(payoff_analysis, aes(x=Reserve_size, y=B_per, group=Implementation_year, color=Implementation_year))+
+  geom_point(size=2)+
+  geom_line()+
+  labs(title = "Reserve size and biomass", x= "Reserve size (%)", y= "Biomass increase (%)")+
+  facet_wrap(~Adjusted, scales="free")+
+  theme_classic()
+
+ggplot(payoff_analysis, aes(x=Reserve_size, y=C_per, group=Implementation_year, color=Implementation_year))+
+  geom_point(size=2)+
+  geom_line()+
+  labs(title = "Reserve size and catch", x= "Reserve size (%)", y= "Catch increase (%)")+
+  facet_wrap(~Adjusted, scales="free")+
+  theme_classic()
+```
+
+Minimize payoff period
+
+```{r}
+plot3 <- All %>% filter(Year<=2065)%>% group_by(Adjusted, Implementation_year, Reserve_size, Year)%>%
+    summarise_at(.vars= vars(Catch, Biomass, Biomass_MPA, PV, BAU_C, BAU_B, BAU_B_MPA, BAU_PV), .funs =  sum)%>%
+  filter(Reserve_size==0.10, Adjusted=="IUU", Implementation_year==2030)%>%
+  ungroup()
+
+COBI<-ggplot(plot1, aes(x=Year, y=Catch))+
+  geom_line(size=1.1, linetype="solid", color="#6F939B")+
+  geom_line(aes(x=Year, y=BAU_C), color="#7D5C39", linetype="dashed",size=1.1)+
+  scale_color_manual(" ",values= c("#7D5C39", "#6F939B"), labels=c("Business as usual", "Reserve size 5%"))+
+  scale_linetype_manual(" ", values=c("dashed", "solid"), labels=c("Business as usual", "Reserve size 5%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(expand = c(0, 0))+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  #theme(text=element_text(family="Calibri Light"))+
+  theme(legend.justification=c(1,1), legend.position=c(1,1),
+        axis.ticks = element_blank(), 
+        legend.box.background = element_rect(colour = "transparent"))
+COBI+facet_wrap(~Implementation_year)
+
+
+
+```
+
+
+

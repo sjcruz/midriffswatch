@@ -1,0 +1,182 @@
+---
+title: "Results"
+author: "Seleni Cruz"
+date: "5/30/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggrepel)
+library(data.table)
+library(plotly)
+library(extrafont)
+
+```
+
+Fishery Status in 2015
+
+```{r echo=FALSE}
+status <- read.csv(here::here("inputs", "ref_pts.csv"))%>%
+  filter(Adjusted=="IUU")
+
+bmsy<- expression(paste(B/B[MSY]))
+fmsy <- expression(paste(F/F[MSY]))
+
+ggplot(status, aes(x= bbmsy, y=ffmsy))+
+  geom_rect(xmin = 0.0, xmax = 1.0, ymin = 0.0, ymax = 1, fill = 'yellow', alpha = 0.1) +
+  geom_rect(xmin = 0, xmax = 1, ymin = 1.0, ymax = 7.1, fill = 'red', alpha = 0.1) +
+  geom_rect(xmin = 1, xmax = 1.5, ymin = 0, ymax = 1, fill = 'green', alpha = 0.1) +
+  geom_rect(xmin = 1, xmax = 2.1, ymin = 1, ymax = 7.1, fill = 'orange', alpha = 0.1)+
+  geom_point(aes(size=catch), show.legend = FALSE)+
+  annotate("point", x = 0.3, y = 1.7, colour = "blue", size=3)+
+  scale_size(range = c(2, 8))+
+  labs(x=bmsy, y=fmsy)+
+  geom_vline(xintercept = 1, linetype="dotted", color="black") +
+  geom_hline(yintercept = 1, linetype="dotted", color="black") +
+  scale_x_continuous(limits=c(0, 1),expand=c(0,0))+
+  scale_y_continuous(limits=c(0, 7.1),expand=c(0,0), breaks = c(0, 1, 2, 4, 6), labels= c(0, 1, 2, 4, 6))+
+  theme_classic(base_size = 12)+
+  geom_text_repel(aes(label = Name, size=4),show.legend=FALSE)
+
+#ggsave(here::here("images", "status_2015.jpg"),  width=4, height=2, dpi=900)
+
+```
+
+COBI 5% design 
+```{r, echo=FALSE, message=FALSE}
+BAU <- read.csv(here::here("inputs", "BAU.csv"))%>%
+  plyr::rename(c("Catch"="BAU_C", "Biomass"="BAU_B","Biomass_MPA"="BAU_B_MPA", "PV"="BAU_PV"))%>%
+  select(Name, Adjusted, Year, BAU_C, BAU_B, BAU_B_MPA, BAU_PV)
+scenarios <- read.csv(here::here("inputs", "Scenarios.csv"))
+
+All <- inner_join(scenarios, BAU, by=c("Name", "Adjusted", "Year"))%>%data.frame()
+
+plot1 <- All %>% group_by(Adjusted, Implementation_year, Reserve_size, Year)%>%
+    summarise_at(.vars= vars(Catch, Biomass, Biomass_MPA, PV, BAU_C, BAU_B, BAU_B_MPA, BAU_PV), .funs =  sum)%>%
+  filter(Reserve_size==0.05, Adjusted=="IUU", Implementation_year==2015)%>%
+  ungroup()
+
+COBI<-ggplot(plot1, aes(x=Year, y=Catch))+
+  geom_line(size=1.1, linetype="solid", color="#6F939B")+
+  geom_line(aes(x=Year, y=BAU_C), color="#7D5C39", linetype="dashed",size=1.1)+
+  scale_color_manual(" ",values= c("#7D5C39", "#6F939B"), labels=c("Business as usual", "Reserve size 5%"))+
+  scale_linetype_manual(" ", values=c("dashed", "solid"), labels=c("Business as usual", "Reserve size 5%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(expand = c(0, 0))+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  #theme(text=element_text(family="Calibri Light"))+
+  theme(legend.justification=c(1,1), legend.position=c(1,1),
+        axis.ticks = element_blank(), 
+        legend.box.background = element_rect(colour = "transparent"))
+COBI
+COBI+facet_wrap(~Implementation_year)
+
+#ggsave(here::here("images", "COBI_design.jpg"),  width=4, height=2, dpi=900) 
+
+```
+
+```{r echo=FALSE}
+payoff_analysis <- read.csv(here::here("inputs", "payoff_all.csv"))%>%
+   filter(Reserve_size=="0.05",  Adjusted=="IUU")%>%
+  select(Implementation_year, C_per, B_per, PV_per, Transition_period, Payoff_period)
+
+names(payoff_analysis)<- c("Implementation year", "Catch (%)", "Biomass (%)", "PV (%)", "Transition period", "Payoff period")
+
+knitr::kable(payoff_analysis, caption="Table 1: COBI design results: catch, biomass and PV in percent relative to BAU, transition and payoff period in years from implementation year",digits = c(0, 2, 2, 2, 0,0))
+
+
+```
+
+Winners and loosers?
+```{r echo=FALSE}
+five <- All %>% filter(Adjusted=="IUU", Implementation_year==2015, Reserve_size==0.05)
+
+fish<-ggplot(five, aes(x=Year, y=Catch, group = Name))+
+  geom_line(size=1.1, linetype="solid", color="#6F939B")+
+  geom_line(aes(x=Year, y=BAU_C), color="#7D5C39", linetype="dashed",size=1.1)+
+  scale_color_manual(" ",values= c("#7D5C39", "#6F939B"), labels=c("Business as usual", "Reserve size 5%"))+
+  scale_linetype_manual(" ", values=c("dashed", "solid"), labels=c("Business as usual", "Reserve size 5%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(limits = c(2016,2065),
+                     breaks=c(2016, 2040, 2064),
+                     labels = c("2015","2040", "2065"), expand = c(0, 0))+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  #theme(text=element_text(family="Calibri Light"))+
+  theme(legend.justification=c(1,1), legend.position=c(1,1),
+        axis.ticks = element_blank(), 
+        legend.box.background = element_rect(colour = "transparent"))
+fish+facet_wrap(~Name, scales="free")
+
+```
+
+```{r echo=FALSE}
+payoff_analysis <- read.csv(here::here("inputs", "payoff_fishery.csv"))%>%
+   filter(Reserve_size=="0.05",  Adjusted=="IUU", Implementation_year==2015)%>%
+  select(Name, C_per, B_per, PV_per, Transition_period, Payoff_period)
+
+names(payoff_analysis)<- c("Fishery", "Catch (%)", "Biomass (%)", "PV (%)", "Transition period", "Payoff period")
+
+knitr::kable(payoff_analysis, caption="Table 2: COBI design results: catch, biomass and PV in percent relative to BAU, transition and payoff period in years from implementation year", digits = c(0, 2, 2, 2, 0,0))
+
+
+```
+
+
+Scenario that maximizes conservation 
+
+```{r echo=FALSE}
+plot2 <- All %>% group_by(Adjusted, Implementation_year, Reserve_size, Year)%>%
+    summarise_at(.vars= vars(Catch, Biomass, Biomass_MPA, PV, BAU_C, BAU_B, BAU_B_MPA, BAU_PV), .funs =  sum)%>%
+  filter(Reserve_size==0.50, Adjusted=="IUU_60_legal", Implementation_year==2030)%>%
+  ungroup()
+
+ggplot(plot2, aes(x=Year, y=Catch))+
+  geom_line(size=1.1, aes(linetype="scen", colour="cscen"))+
+  geom_line(aes(x=Year, y=BAU_C, colour="BAU", linetype="BAUl"), size=1.1)+
+  scale_colour_manual(name="",values= c(cscen="#7D5C39", BAU="#6F939B"), labels=c("Business as usual", "Reserve size 50%"))+
+  scale_linetype_manual("", values=c(scen="dashed", BAUl="solid"), labels=c("Business as usual", "Reserve size 50%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(limits = c(2015,2065),
+                     breaks=c(2015, 2040, 2064),
+                     labels = c("2015","2040", "2065"), expand = c(0, 0))+
+  scale_y_continuous(limits = c(1000,16000), expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  theme(legend.justification=c(1,0), legend.position=c(1,0),
+        axis.ticks = element_blank(),
+        legend.background = element_blank())
+
+#ggsave(here::here("images", "conservation.jpg"),  width=4, height=2, dpi=900) 
+```
+
+Scenario that maximises conservation 
+
+```{r echo=FALSE}
+plot2 <- All %>% group_by(Adjusted, Implementation_year, Reserve_size, Year)%>%
+    summarise_at(.vars= vars(Catch, Biomass, Biomass_MPA, PV, BAU_C, BAU_B, BAU_B_MPA, BAU_PV), .funs =  sum)%>%
+  filter(Reserve_size==0.50, Adjusted=="IUU_60_legal", Implementation_year==2015)%>%
+  ungroup()
+
+ggplot(plot2, aes(x=Year, y=Catch))+
+  geom_line(size=1.1, aes(linetype="scen", colour="cscen"))+
+  geom_line(aes(x=Year, y=BAU_C, colour="BAU", linetype="BAUl"), size=1.1)+
+  scale_colour_manual(name="",values= c(cscen="#7D5C39", BAU="#6F939B"), labels=c("Business as usual", "Reserve size 50%"))+
+  scale_linetype_manual("", values=c(scen="dashed", BAUl="solid"), labels=c("Business as usual", "Reserve size 50%"))+
+  labs(y="Catch (Metric tons)")+
+  scale_x_continuous(limits = c(2015,2065),
+                     breaks=c(2015, 2040, 2064),
+                     labels = c("2015","2040", "2065"), expand = c(0, 0))+
+  scale_y_continuous(limits = c(1000,13000), expand = c(0, 0))+
+  theme_classic(base_size = 10)+
+  theme(legend.justification=c(1,0), legend.position=c(1,0),
+        axis.ticks = element_blank(),
+        legend.background = element_blank())
+
+#ggsave(here::here("images", "conservation.jpg"),  width=4, height=2, dpi=900) 
+```
+

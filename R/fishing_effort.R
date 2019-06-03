@@ -28,3 +28,4 @@ fishing_effort<- function (p, MSY, r, bmsy, fmsy, F.mat, B.mat, c, profit.msy, t
   F.mat <- ffmsy.mat * fmsy
   
   return(list(F.mat, profit, PV, revenue))}
+

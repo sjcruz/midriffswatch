@@ -64,6 +64,11 @@ stock_assessment<-function(data, priors){
                        ffmsy_hi=NA,	
                        er=NA)
   
+  rk_viables <- data.frame(Name=NA,
+                       Adjusted=NA,
+                       viable_r=NA,	
+                       viable_k=NA)
+  
   Genus <- as.vector(unique(data$Genus))
   
   for (s in Genus){
@@ -83,6 +88,8 @@ stock_assessment<-function(data, priors){
       catch <- catches[,i]
       x_last<- nrow(catch)
       adjusted <- colnames(catches[i])
+      Name <- s
+      Adjusted <- adjusted
       
       cmsy <- datalimited2::cmsy2(year=year, catch=catch, resilience = resilience, 
                                   r.low=r.low, r.hi=r.hi, 
@@ -91,12 +98,16 @@ stock_assessment<-function(data, priors){
       
       output<- cmsy$ref_ts
       
-      Name <- s
-      Adjusted <- adjusted
+      viable_r <- cmsy$r_viable
+      viable_k <- cmsy$k_viable
+      
+      rkb <- cbind (viable_r, viable_k)%>% data.frame()%>%
+        mutate(Name = Name, Adjusted = Adjusted)
+     
+      rk_viables <- rbind (rk_viables, rkb)
       
       output<- output%>%
-        mutate(Name = Name, 
-               Adjusted = Adjusted)
+        mutate(Name = Name, Adjusted = Adjusted)
       
       R <- cmsy$ref_pts[1,2:4]
       K <- cmsy$ref_pts[2,2:4]
@@ -116,5 +127,6 @@ stock_assessment<-function(data, priors){
       ref_ts<- rbind(ref_ts, output)
     }
   }
-  return (list(ref_pts=ref_pts[-1,], ref_ts=ref_ts[-1,]))
+  return (list(ref_pts=ref_pts[-1,], ref_ts=ref_ts[-1,], rk_viables[-1,]))
 }
+
